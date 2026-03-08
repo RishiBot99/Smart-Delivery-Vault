@@ -1,3 +1,4 @@
+#Calls hardware_manager to get temperature data, and using IP address to get location. 
 import requests
 import hardware_manager # Forced import: if this file is missing, the app will crash (good for testing)
 
@@ -22,18 +23,17 @@ def get_sensor_data():
     """
     global _cached_location
     
-    # 1. Get Location (Cached)
+    # 1. Get Location (Cached) so we dont need to always call get_ip_location 
     if _cached_location is None:
         _cached_location = get_ip_location()
     
-    # 2. Get REAL Temperature from BMP180
+    # 2. Get Temperature from BMP180
     try:
-        # Directly call your partner's hardware manager
+        # Directly call hardware manager
         temp = round(hardware_manager.result(), 2)
     except Exception as e:
-        # If hardware fails, we return 0.0 to indicate a hardware error
-        # rather than using simulation.
-        print(f"🚨 HARDWARE ERROR: {e}")
+        # If hardware fails, we return 0.0 to indicate a hardware error rather than using simulation.
+        print(f" HARDWARE ERROR: {e}")
         temp = 0.0 
-    
+
     return temp, _cached_location
