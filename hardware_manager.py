@@ -1,3 +1,4 @@
+#Controls and gets data from the temperature sensor
 #!/usr/bin/python
 
 try:
