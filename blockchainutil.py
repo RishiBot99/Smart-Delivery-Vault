@@ -4,6 +4,7 @@ from xrpl.wallet import Wallet
 from xrpl.models.transactions import EscrowFinish, TrustSet
 from xrpl.models.amounts import IssuedCurrencyAmount
 from xrpl.transaction import submit_and_wait
+from xrpl.models.transactions import Memo
 from xrpl.account import get_balance
 
 # Global Client
@@ -38,13 +39,16 @@ def setup_rlusd_trustline():
     )
     return submit_and_wait(trust_set_tx, CLIENT, wallet)
 
-def release_escrow():
+def release_escrow(verified_temp):
     """Signs and submits based on .env values"""
     wallet = get_sentinel_wallet()
     raw_seq = os.getenv("ESCROW_SEQUENCE")
     # SAFETY CHECK: If it's missing or literally the string "None"
     if not raw_seq or raw_seq == "None":
         return False, "No Escrow Sequence found in .env. Please create an escrow first!"
+
+    memo_text = f"Sentinel Verified: Temp {verified_temp}C. Conditions Met."
+    memo_hex = memo_text.encode("utf-8").hex().upper() # XRPL needs Hex
 
     # Inside release_escrow() in blockchainutil.py
     finish_tx = EscrowFinish(
