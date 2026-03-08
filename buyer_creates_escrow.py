@@ -98,9 +98,12 @@ def create_escrow():
     try:
         response = submit_and_wait(escrow_tx, client, buyer_wallet)
         if response.is_successful():
-            res_data = response.result
-            # Try to find Sequence in multiple places
-            seq = res_data.get("Sequence") or res_data.get("tx_json", {}).get("Sequence")
+            # The sequence of the transaction is what identifies the escrow
+            seq = response.result.get("Sequence") 
+            buyer_addr = buyer_wallet.classic_address
+        
+            update_env_variable("BUYER_ADDRESS", buyer_addr)
+            update_env_variable("ESCROW_SEQUENCE", str(seq))
             print(f"🚀 SUCCESS! ESCROW_SEQUENCE: {seq}")
         else:
             print(f"❌ Ledger Error: {response.result}")

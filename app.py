@@ -2,53 +2,67 @@ import streamlit as st
 from dotenv import load_dotenv
 import os
 import time
-from blockchainutil import check_balance, release_escrow # Keep your name!
-# import sensors # Your partner's file
+from blockchainutil import check_balance, release_escrow
+from sensors import get_sensor_data  # Import our updated function
 
 load_dotenv(override=True)
 
+st.set_page_config(page_title="Smart Delivery Vault", page_icon="🛡️")
 st.title("🛡️ Smart Delivery Vault")
 
-# Sidebar
+# Sidebar - Real-time stats
 addr = os.getenv('SENTINEL_ADDRESS')
 if addr:
-    st.sidebar.metric("Sentinel Balance", f"{check_balance(addr)} XRP")
-    st.sidebar.write(f"Monitoring: `{os.getenv('ESCROW_SEQUENCE')}`")
+    st.sidebar.subheader("Sentinel Status")
+    st.sidebar.metric("Balance", f"{check_balance(addr)} XRP")
+    st.sidebar.info(f"Escrow ID: {os.getenv('ESCROW_SEQUENCE')}")
 
+# Main UI
+st.write("### Live Telemetry")
+col1, col2, col3 = st.columns(3)
+temp_stat = col1.empty()
+dist_stat = col2.empty()
+loc_stat = col3.empty()
 
-# THE CORE FUNCTIONALITY:
-if st.button("Start Sentinel Guard"):
-    # 1. Start the loop
-    placeholder = st.empty()
+if st.button("Start Sentinel Guard", use_container_width=True):
+    progress_bar = st.progress(0)
+    status_text = st.empty()
     
-    # We loop until the conditions are met
     verified_steps = 0
-    while verified_steps < 5:
-        # Get data from your partner's code
-        # temp = sensors.get_temp() 
-        # is_open = sensors.check_lidar()
-        temp = 22.0 # Placeholder until partner finishes
+    target_steps = 5 
+    
+    while verified_steps < target_steps:
+        # GET DATA FROM OUR HARDWARE LAYER
+        temp, dist, tampered, loc = get_sensor_data()
         
+        # Update Dashboard
+        temp_stat.metric("Temperature", f"{temp} °C")
+        dist_stat.metric("Lidar Distance", f"{dist} cm")
+        loc_stat.write(f"**Location:** \n {loc}")
         
-        placeholder.write(f"🔍 Monitoring... Current Temp: {temp}°C | Progress: {verified_steps}/5")
-        
-        if temp < 25.0:
+        # VALIDATION LOGIC
+        # 1. Temp must be safe (< 25)
+        # 2. Must not be tampered (Lidar detects box is closed)
+        if temp < 25.0 and not tampered:
             verified_steps += 1
+            status_text.success(f"Step {verified_steps}/{target_steps}: Conditions Optimal.")
         else:
-            verified_steps = 0
+            verified_steps = 0 # Reset progress if conditions fail
+            status_text.error("🚨 SECURITY BREACH: Conditions Out of Bounds!")
             
-        time.sleep(1) # Sped up to 1 second for demo purposes
+        progress_bar.progress(verified_steps / target_steps)
+        time.sleep(1.5)
     
-    st.warning("⚖️ Conditions Met! Submitting Fulfillment to XRPL...")
+    st.warning("⚖️ Threshold Reached. Validating Cryptographic Fulfillment...")
     
-    # Note: Make sure your release_escrow function in blockchainutil.py 
-    # accepts the sequence from the .env!
-    success, tx_hash = release_escrow()
+    # Trigger XRPL Release
+    with st.spinner("Submitting to XRPL Ledger..."):
+        success, tx_hash = release_escrow()
     
     if success:
         st.balloons()
-        st.success("✅ Payment Released!")
-        st.code(f"Tx Hash: {tx_hash}")
-        st.link_button("View on Ledger", f"https://testnet.xrpl.org/transactions/{tx_hash}")
+        st.success("✅ Payment Released Successfully!")
+        st.write(f"**Transaction Hash:** `{tx_hash}`")
+        st.link_button("View on XRPL Explorer", f"https://testnet.xrpl.org/transactions/{tx_hash}")
     else:
         st.error(f"❌ Release Failed: {tx_hash}")

@@ -42,13 +42,16 @@ def release_escrow():
     """Signs and submits based on .env values"""
     wallet = get_sentinel_wallet()
     
+    # Inside release_escrow() in blockchainutil.py
     finish_tx = EscrowFinish(
         account=wallet.classic_address,
         owner=os.getenv("BUYER_ADDRESS").strip(),
-        offer_sequence=int(os.getenv("ESCROW_SEQUENCE").strip()),
+        offer_sequence=int(os.getenv("ESCROW_SEQUENCE")), # Must be int!
         condition=os.getenv("CONDITION").strip(),
         fulfillment=os.getenv("FULFILLMENT").strip()
+    
     )
+    
     
     response = submit_and_wait(finish_tx, CLIENT, wallet)
     return response.is_successful(), response.result.get("hash")
