@@ -1,36 +1,45 @@
-import board
-import busio
-import adafruit_bmp180 # Change to bmp180 if using the older model
 import random
+import requests
 
-# Initialize I2C bus
+# Try to import your partner's hardware manager
 try:
-    i2c = board.I2C()  # uses board.SCL and board.SDA
-    sensor = adafruit_bmp180.Adafruit_BMP180_I2C(i2c)
-    HARDWARE_CONNECTED = True
-except Exception as e:
-    print(f"⚠️ Hardware not detected, falling back to simulation: {e}")
-    HARDWARE_CONNECTED = False
+    import hardware_manager
+    HAS_HARDWARE = True
+except ImportError:
+    HAS_HARDWARE = False
+
+# Cache the location so we don't ping the API every second
+_cached_location = None
+
+def get_ip_location():
+    """Fetches location based on the Pi's IP address."""
+    try:
+        response = requests.get('https://ipapi.co/json/', timeout=5).json()
+        city = response.get('city', 'Unknown City')
+        region = response.get('region', 'Unknown Region')
+        return f"{city}, {region}"
+    except:
+        return "Location Unavailable"
 
 def get_sensor_data():
     """
-    Returns: (temp, distance, tampered)
-    Note: distance and tampered are kept for compatibility with app.py 
-    but are hardcoded since we are only checking temperature.
+    Returns: (temp, location)
     """
+    global _cached_location
     
-    if HARDWARE_CONNECTED:
+    # 1. Get Location (only once per session)
+    if _cached_location is None:
+        _cached_location = get_ip_location()
+    
+    # 2. Get Temperature
+    if HAS_HARDWARE:
         try:
-            # REAL DATA from Raspberry Pi 5
-            temp = round(sensor.temperature, 2)
-        except Exception:
-            temp = 0.0
+            # Calls your partner's BMP180 code
+            temp = round(hardware_manager.result(), 2)
+        except:
+            temp = round(random.uniform(22.0, 23.0), 2) # Hardware fallback
     else:
-        # SIMULATED DATA (If sensor is unplugged)
+        # Laptop Simulation Mode
         temp = round(random.uniform(21.0, 23.5), 2)
     
-    # Keeping these to prevent breaking app.py logic
-    distance = 50 
-    tampered = False
-    
-    return temp, distance, tampered
+    return temp, _cached_location

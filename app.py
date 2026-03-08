@@ -16,93 +16,88 @@ if 'settled_escrows' not in st.session_state:
 
 load_dotenv(override=True)
 
-st.set_page_config(page_title="Smart Delivery Vault", layout="wide")
+st.set_page_config(page_title="Smart Delivery Vault", layout="centered")
 
 # --- SIDEBAR: MANAGEMENT ---
-st.sidebar.title("🛠️ Sentinel Admin")
+st.sidebar.title("🛡️ Sentinel Admin")
 sentinel_addr = os.getenv('SENTINEL_ADDRESS')
 
 if sentinel_addr:
     st.sidebar.metric("Sentinel Balance", f"{check_balance(sentinel_addr)} XRP")
 
 st.sidebar.divider()
-st.sidebar.subheader("Escrow Management")
-
-if st.sidebar.button("🆕 Create New Escrow (Buyer Side)"):
-    with st.sidebar.status("Creating Escrow on Ledger...", expanded=True) as status:
-        st.write("Generating temporary buyer wallet...")
+if st.sidebar.button("🆕 Create New Escrow"):
+    with st.sidebar.status("Creating Escrow...", expanded=True) as status:
         creator.create_escrow() 
         status.update(label="Escrow Created!", state="complete")
     st.rerun()
 
-st.sidebar.info(f"**Monitoring Escrow:** {os.getenv('ESCROW_SEQUENCE')}")
-st.sidebar.caption(f"Buyer: {os.getenv('BUYER_ADDRESS')}")
+st.sidebar.info(f"**Escrow ID:** {os.getenv('ESCROW_SEQUENCE')}")
 
-# --- MAIN UI: MONITORING ---
+# --- MAIN UI ---
 st.title("🛡️ Smart Delivery Vault")
-st.write("This vault releases payment only if temperature and security parameters are met.")
+st.write("Ensuring safe transit via real-time environmental monitoring.")
 
-# Placeholders for metrics (prevents the "waterfall" effect)
-col1, col2 = st.columns(2)
-temp_stat = col1.empty()
-dist_stat = col2.empty()
+# UI Placeholders
+temp_stat = st.empty()
+loc_info = st.empty()
 
 if st.button("🚀 Start Sentinel Guard", use_container_width=True):
     current_seq = os.getenv('ESCROW_SEQUENCE')
+    
+    # FAILSAFE
+    if current_seq in st.session_state.settled_escrows:
+        st.error(f"⚠️ Escrow {current_seq} already settled.")
+        st.stop() 
+
     verified_steps = 0
     progress_bar = st.progress(0)
 
-    # FAILSAFE CHECK
-    if current_seq in st.session_state.settled_escrows:
-        st.error(f"⚠️ ESCROW ALERT: Sequence {current_seq} has already been settled!")
-        st.stop() 
-    
-    # Loop for 5 "Success" readings
-    with st.status("🕵️ Sentinel Monitoring Active...", expanded=True) as status:
+    with st.status("🕵️ Monitoring Environment...", expanded=True) as status:
         while verified_steps < 5:
-            temp, distance, tampered, location = get_sensor_data()
+            # UNPACKING ONLY 2 VALUES
+            temp, location = get_sensor_data()
             
-            # Update metrics in the fixed placeholders
-            temp_stat.metric("Temperature", f"{temp}°C", delta="-0.2" if temp < 25 else "HIGH")
-            dist_stat.metric("Lidar Distance", f"{distance}cm", delta="Locked" if not tampered else "TAMPERED")
+            # Update Display
+            temp_stat.metric("Current Temperature", f"{temp} °C", delta=None if temp < 25 else "OVERHEAT")
+            loc_area_text = f"📍 **Verified Location:** {location}"
+            loc_info.markdown(loc_area_text)
 
-            if temp < 25.0 and not tampered:
+            if temp < 25.0:
                 verified_steps += 1
-                st.toast(f"Condition Met ({verified_steps}/5)")
+                st.write(f"✅ Check {verified_steps}/5: Stable")
             else:
                 verified_steps = 0 
-                st.error("CONDITIONS VIOLATED")
+                st.write("🚨 ALERT: TEMPERATURE EXCEEDED THRESHOLD")
                 
             progress_bar.progress(verified_steps * 20)
             time.sleep(1) 
 
-        status.update(label="✅ All Conditions Verified!", state="complete", expanded=False)
+        status.update(label="✅ Environment Verified!", state="complete", expanded=False)
     
     st.warning("⚖️ Conditions met. Submitting Fulfillment to XRPL...")
     
-    # 2. TRIGGER THE SETTLEMENT
     success, result = release_escrow()
     
     if success:
-        # COMBINED SUCCESS LOGIC
         st.session_state.settled_escrows.append(current_seq) 
         st.session_state.history.append({
             "Time": time.strftime("%H:%M:%S"),
-            "Escrow Seq": current_seq,
-            "Result": "Success (Released)",
-            "Tx Hash": result[:12] + "..." 
+            "Sequence": current_seq,
+            "Temp": f"{temp}°C",
+            "Location": location,
+            "Result": "Success"
         })
-        
         st.balloons()
-        st.success(f"✅ Payment Released! Hash: {result}")
+        st.success(f"✅ Payment Released! Tx: {result[:15]}...")
         st.link_button("View on Ledger", f"https://testnet.xrpl.org/transactions/{result}")
     else:
         st.error(f"❌ Settlement Failed: {result}")
 
-# --- HISTORY TABLE ---
+# --- HISTORY ---
 st.divider()
 st.subheader("📜 Delivery Audit Log")
 if st.session_state.history:
     st.table(st.session_state.history)
 else:
-    st.info("No deliveries processed yet.")
+    st.info("No logs available.")
