@@ -1,6 +1,5 @@
 import os
 import time
-# import random  # REMOVED: No longer needed
 from dotenv import load_dotenv
 
 # Hardware Import
@@ -17,7 +16,6 @@ from xrpl.transaction import submit_and_wait
 load_dotenv()
 SENTINEL_SEED = os.getenv("SENTINEL_SEED")
 BUYER_ADDRESS = os.getenv("BUYER_ADDRESS")
-# Ensure the sequence is an integer
 ESCROW_SEQUENCE = int(os.getenv("ESCROW_SEQUENCE", 0))
 CONDITION = os.getenv("CONDITION")
 FULFILLMENT = os.getenv("FULFILLMENT")
@@ -53,45 +51,41 @@ def trigger_escrow_finish():
         return False
 
 def run_sentinel_hardware_monitor():
-    """
-    Polls the REAL BMP180 sensor and tracks 'safe' readings.
-    """
+    """Polls the REAL BMP180 sensor and tracks 'safe' readings."""
     safe_check_count = 0
+    overheat_strikes = 0
     required_safe_checks = 5
-    threshold = 24.0 
+    # FIXED: Replaced space with underscore to match .env standards
+    max_strikes = int(os.getenv("MAX_OVERHEAT_STRIKES", 10))
+    threshold = float(os.getenv("SAFE_TEMP_THRESHOLD", 25.0)) 
 
     print(f"--- 🛡️ HARDWARE SENTINEL ACTIVE ---")
     print(f"Sentinel Address: {sentinel_wallet.classic_address}")
-    print(f"Target Escrow Owner: {BUYER_ADDRESS}")
-    print(f"Target Escrow Sequence: {ESCROW_SEQUENCE}")
-    print(f"Threshold: < {threshold}°C\n")
+    print(f"Threshold: < {threshold}°C | Max Overheat Strikes: {max_strikes}\n")
 
     while safe_check_count < required_safe_checks:
         try:
-            # 3. GET REAL DATA FROM HARDWARE
-            # We call the result() function from your partner's file
             current_temp = round(hardware_manager.result(), 2)
         except Exception as e:
-            # 4. HARDWARE FAILSAFE
-            # If the sensor is unplugged, we set an 'Impossible' high temp
-            # to prevent the escrow from ever finishing.
             print(f"🚨 SENSOR DISCONNECTED: {e}")
             current_temp = 999.9
         
-        # 5. Condition Logic
         if current_temp > threshold:
-            # If 999.9 (error) or real high temp, reset the count
-            print(f"🚨 ALERT: Temp Spike/Hardware Error! Current: {current_temp}°C. Resetting counter.")
+            overheat_strikes += 1
             safe_check_count = 0 
+            print(f"🚨 ALERT: Overheat! Strike {overheat_strikes}/{max_strikes} (Current: {current_temp}°C)")
+            
+            if overheat_strikes >= max_strikes:
+                print("\n❌ CRITICAL FAILURE: The goods are ruined. Transaction aborted.")
+                return # Exit without settling
         else:
+            overheat_strikes = 0 # Reset strikes if it returns to safe levels
             safe_check_count += 1
             print(f"✨ Safe: {current_temp}°C (Check {safe_check_count}/{required_safe_checks})")
-
-        # Poll every 2 seconds
+            
         time.sleep(2)
 
-    # 6. Requirement Met: Trigger Blockchain Action
-    print(f"\n📦 Verified safe environment for {required_safe_checks} cycles.")
+    print(f"\n📦 Verified safe environment. Proceeding to settlement...")
     trigger_escrow_finish()
 
 if __name__ == "__main__":

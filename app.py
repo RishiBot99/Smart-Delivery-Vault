@@ -8,13 +8,17 @@ from blockchainutil import check_balance, release_escrow
 from sensors import get_sensor_data
 import buyer_creates_escrow as creator 
 
+load_dotenv(override=True)
+
+# Load Thresholds from .env
+THRESHOLD = float(os.getenv("SAFE_TEMP_THRESHOLD", 25.0))
+MAX_STRIKES = int(os.getenv("MAX_OVERHEAT_STRIKES", 10))
+
 # Initialize Session States
 if 'history' not in st.session_state:
     st.session_state.history = []
 if 'settled_escrows' not in st.session_state: 
     st.session_state.settled_escrows = []
-
-load_dotenv(override=True)
 
 st.set_page_config(page_title="Smart Delivery Vault", layout="centered")
 
@@ -51,49 +55,66 @@ if st.button("🚀 Start Sentinel Guard", use_container_width=True):
         st.stop() 
 
     verified_steps = 0
+    overheat_strikes = 0 # FIXED SPELLING
     progress_bar = st.progress(0)
+    ruined = False
+    temp, location = 0.0, "Unknown" # Initialize to prevent crash if loop fails immediately
 
     with st.status("🕵️ Monitoring Environment...", expanded=True) as status:
-        while verified_steps < 5:
-            # UNPACKING ONLY 2 VALUES
+        while verified_steps < 5 and overheat_strikes < MAX_STRIKES:
             temp, location = get_sensor_data()
             
             # Update Display
-            temp_stat.metric("Current Temperature", f"{temp} °C", delta=None if temp < 25 else "OVERHEAT")
-            loc_area_text = f"📍 **Verified Location:** {location}"
-            loc_info.markdown(loc_area_text)
+            temp_stat.metric("Current Temperature", f"{temp} °C", 
+                             delta=None if temp <= THRESHOLD else "OVERHEAT", 
+                             delta_color="inverse")
+            loc_info.markdown(f"📍 **Verified Location:** {location}")
 
-            if temp < 25.0:
-                verified_steps += 1
-                st.write(f"✅ Check {verified_steps}/5: Stable")
+            if temp > THRESHOLD:
+                overheat_strikes += 1
+                verified_steps = 0 # Reset safety progress
+                st.warning(f"🚨 ALERT: Overheat Strike {overheat_strikes}/{MAX_STRIKES}")
             else:
-                verified_steps = 0 
-                st.write("🚨 ALERT: TEMPERATURE EXCEEDED THRESHOLD")
+                overheat_strikes = 0 # Reset strikes if it cools back down
+                verified_steps += 1
+                st.write(f"✅ Check {verified_steps}/5: Environment Safe")
                 
             progress_bar.progress(verified_steps * 20)
             time.sleep(1) 
 
-        status.update(label="✅ Environment Verified!", state="complete", expanded=False)
-    
-    st.warning("⚖️ Conditions met. Submitting Fulfillment to XRPL...")
-    
-    # Pass the last 'temp' recorded from the loop into the function
-    success, result = release_escrow(temp)
-    
-    if success:
-        st.session_state.settled_escrows.append(current_seq) 
+        if overheat_strikes >= MAX_STRIKES:
+            ruined = True
+            status.update(label="❌ MONITORING HALTED: Goods Ruined", state="error", expanded=True)
+        else:
+            status.update(label="✅ Environment Verified!", state="complete", expanded=False)
+
+    # ACTION LOGIC
+    if ruined:
+        st.error(f"❌ TRANSACTION ABORTED: The goods reached {temp}°C for {MAX_STRIKES} cycles. The Sentinel will not settle this escrow.")
         st.session_state.history.append({
             "Time": time.strftime("%H:%M:%S"),
             "Sequence": current_seq,
             "Temp": f"{temp}°C",
             "Location": location,
-            "Result": "Success"
+            "Result": "FAILED: RUINED"
         })
-        st.balloons()
-        st.success(f"✅ Payment Released! Tx: {result[:15]}...")
-        st.link_button("View on Ledger", f"https://testnet.xrpl.org/transactions/{result}")
     else:
-        st.error(f"❌ Settlement Failed: {result}")
+        st.info("⚖️ Conditions met. Submitting Fulfillment to XRPL...")
+        success, result = release_escrow(temp)
+        if success:
+            st.session_state.settled_escrows.append(current_seq) 
+            st.session_state.history.append({
+                "Time": time.strftime("%H:%M:%S"),
+                "Sequence": current_seq,
+                "Temp": f"{temp}°C",
+                "Location": location,
+                "Result": "Success"
+            })
+            st.balloons()
+            st.success(f"✅ Payment Released! Tx: {result[:15]}...")
+            st.link_button("View on Ledger", f"https://testnet.xrpl.org/transactions/{result}")
+        else:
+            st.error(f"❌ XRPL Error: {result}")
 
 # --- HISTORY ---
 st.divider()
