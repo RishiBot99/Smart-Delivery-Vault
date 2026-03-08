@@ -77,7 +77,8 @@ if st.button("🚀 Start Sentinel Guard", use_container_width=True):
     
     st.warning("⚖️ Conditions met. Submitting Fulfillment to XRPL...")
     
-    success, result = release_escrow()
+    # Pass the last 'temp' recorded from the loop into the function
+    success, result = release_escrow(temp)
     
     if success:
         st.session_state.settled_escrows.append(current_seq) 

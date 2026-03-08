@@ -39,7 +39,7 @@ def setup_rlusd_trustline():
     )
     return submit_and_wait(trust_set_tx, CLIENT, wallet)
 
-def release_escrow(verified_temp):
+def release_escrow(verified_temp=None):
     """Signs and submits based on .env values"""
     wallet = get_sentinel_wallet()
     raw_seq = os.getenv("ESCROW_SEQUENCE")
@@ -47,8 +47,8 @@ def release_escrow(verified_temp):
     if not raw_seq or raw_seq == "None":
         return False, "No Escrow Sequence found in .env. Please create an escrow first!"
 
-    memo_text = f"Sentinel Verified: Temp {verified_temp}C. Conditions Met."
-    memo_hex = memo_text.encode("utf-8").hex().upper() # XRPL needs Hex
+    memo_text = f"Sentinel Verified: Temp {verified_temp}C" if verified_temp else "Sentinel Verified"
+    memo_hex = memo_text.encode("utf-8").hex().upper()
 
     # Inside release_escrow() in blockchainutil.py
     finish_tx = EscrowFinish(
