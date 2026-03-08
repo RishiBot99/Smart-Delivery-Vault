@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# sudo apt-get install python-smbus
+
 try:
     import smbus2 as smbus
 except ImportError:
@@ -7,14 +7,14 @@ except ImportError:
 import time
 from ctypes import c_short
 
-DEVICE = 0x77  # Default device I2C address
+DEVICE = 0x77  # Address of the temperature sensor
 
-bus = smbus.SMBus(1)  # Rev 2 Pi uses 1 
+#tells pi to look at the SCL and SDA pins
+bus = smbus.SMBus(1)
 
 
 def convertToString(data):
-    # Simple function to convert binary data into
-    # a string
+    #function to convert binary data into string
     return str((data[1] + (256 * data[0])) / 1.2)
 
 
@@ -41,7 +41,7 @@ def readBmp180(addr=0x77):
     REG_MEAS = 0xF4
     REG_MSB = 0xF6
     REG_LSB = 0xF7
-    # Control Register Address
+    # Control Register Address as specified in the data sheet
     CRV_TEMP = 0x2E
     CRV_PRES = 0x34
     # Oversample setting
@@ -51,7 +51,7 @@ def readBmp180(addr=0x77):
     # Read calibration data from EEPROM
     cal = bus.read_i2c_block_data(addr, REG_CALIB, 22)
 
-    # Convert byte data to word values
+    # Convert byte data to word values, stored in variables corresponding to the parameter for the bits register address. As specified in data sheet.  
     AC1 = getShort(cal, 0)
     AC2 = getShort(cal, 2)
     AC3 = getShort(cal, 4)
@@ -70,7 +70,7 @@ def readBmp180(addr=0x77):
     (msb, lsb) = bus.read_i2c_block_data(addr, REG_MSB, 2)
     UT = (msb << 8) + lsb
 
-    # Refine temperature
+    # Converts raw temperature data into celcius, as specified in the data sheet
     X1 = ((UT - AC6) * AC5) >> 15
     X2 = (MC << 11) / (X1 + MD)
     B5 = X1 + X2
@@ -79,12 +79,10 @@ def readBmp180(addr=0x77):
 
     return (temperature)
 
-def result():
-    temp = readBmp180()
-    tempC = temp
-    #tempF = (tempC * 1.8) + 32
 
-    # print("Temp in C:  ",tempC)
-    # print("Temp in F:  ",tempF)
-    return tempC
-    #print("\n")
+def result():
+    #temperature that will be used in other files 
+    temp = readBmp180()
+
+    return temp
+
