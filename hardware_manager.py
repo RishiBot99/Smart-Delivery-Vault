@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # sudo apt-get install python-smbus
-import smbus
+try:
+    import smbus2 as smbus
+except ImportError:
+    import smbus # Fallback for system-level
 import time
 from ctypes import c_short
 
