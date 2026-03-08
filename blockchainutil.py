@@ -41,7 +41,11 @@ def setup_rlusd_trustline():
 def release_escrow():
     """Signs and submits based on .env values"""
     wallet = get_sentinel_wallet()
-    
+    raw_seq = os.getenv("ESCROW_SEQUENCE")
+    # SAFETY CHECK: If it's missing or literally the string "None"
+    if not raw_seq or raw_seq == "None":
+        return False, "No Escrow Sequence found in .env. Please create an escrow first!"
+
     # Inside release_escrow() in blockchainutil.py
     finish_tx = EscrowFinish(
         account=wallet.classic_address,

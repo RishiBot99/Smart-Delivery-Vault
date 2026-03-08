@@ -12,6 +12,7 @@ from xrpl.transaction import submit_and_wait
 from xrpl.utils import datetime_to_ripple_time
 
 
+
 def update_env_variable(key, value):
     """
     Finds a key in the .env file and updates its value.
@@ -48,7 +49,6 @@ print("--- Checkpoint 1: Libraries imported... ---")
 
 def create_escrow():
     load_dotenv()
-    # I'm adding a 30-second timeout so it doesn't hang forever
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234")
     
     print("--- Checkpoint 2: Entering create_escrow function... ---")
@@ -58,14 +58,12 @@ def create_escrow():
     
     if not sentinel_addr or not condition:
         print("❌ ERROR: Your .env file is missing SENTINEL_ADDRESS or CONDITION.")
-        print(f"Current SENTINEL_ADDRESS: {sentinel_addr}")
-        print(f"Current CONDITION: {condition}")
         return
 
     sentinel_addr = sentinel_addr.strip()
     condition = condition.strip()
 
-    print("--- Checkpoint 3: Requesting funds from Faucet (This can take 20 seconds)... ---")
+    print("--- Checkpoint 3: Requesting funds from Faucet... ---")
     try:
         buyer_wallet = generate_faucet_wallet(client)
         print(f"✅ Buyer Created: {buyer_wallet.classic_address}")
@@ -97,33 +95,34 @@ def create_escrow():
     print("--- Checkpoint 6: Submitting Escrow to Ledger... ---")
     try:
         response = submit_and_wait(escrow_tx, client, buyer_wallet)
-        if response.is_successful():
-            # The sequence of the transaction is what identifies the escrow
-            seq = response.result.get("Sequence") 
-            buyer_addr = buyer_wallet.classic_address
         
-            update_env_variable("BUYER_ADDRESS", buyer_addr)
-            update_env_variable("ESCROW_SEQUENCE", str(seq))
-            print(f"🚀 SUCCESS! ESCROW_SEQUENCE: {seq}")
-        else:
-            print(f"❌ Ledger Error: {response.result}")
-    except Exception as e:
-        print(f"⚠️ Error: {e}")
-        # ... inside your create_escrow() function ...
+        if response.is_successful():
+            # SUCCESS LOGIC
+            res_data = response.result
+            
+            # This line is the critical fix. It looks in 'tx_json' safely.
+            tx_body = res_data.get("tx_json", res_data)
+            seq = tx_body.get("Sequence")
 
-    if response.is_successful():
-        seq = response.result['Sequence']
-        buyer_addr = buyer_wallet.classic_address
-    
-        # AUTOMATICALLY UPDATE THE .ENV
-        print("Writing new values to .env...")
-        update_env_variable("BUYER_ADDRESS", buyer_addr)
-        update_env_variable("ESCROW_SEQUENCE", seq)
-    
-        print("\n" + "🚀 SUCCESS!" + "="*30)
-        print(f"NEW BUYER_ADDRESS: {buyer_addr}")
-        print(f"NEW ESCROW_SEQUENCE: {seq}")
-        print("= (The .env file has been updated automatically) =")
+            if seq:
+                buyer_addr = buyer_wallet.classic_address
+                print(f"Writing new values to .env... Sequence: {seq}")
+                
+                update_env_variable("BUYER_ADDRESS", buyer_addr)
+                update_env_variable("ESCROW_SEQUENCE", str(seq))
+            
+                print("\n" + "🚀 SUCCESS!" + "="*30)
+                print(f"NEW BUYER_ADDRESS: {buyer_addr}")
+                print(f"NEW ESCROW_SEQUENCE: {seq}")
+            else:
+                print("❌ Error: Ledger accepted tx, but Sequence was missing from response.")
+        else:
+            print(f"❌ Ledger Error: {response.result.get('engine_result_message')}")
+
+    except Exception as e:
+        print(f"⚠️ Error during submission: {e}")
+
+    # --- THE OLD BROKEN CODE WAS REMOVED FROM HERE ---
 
 
 if __name__ == "__main__":
