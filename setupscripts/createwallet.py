@@ -1,3 +1,4 @@
+#setsup user's wallet. First connects to the Testnet node, then creates a wallet and prints out the user's address and seed (password), and a url to see ledger
 import xrpl
 from xrpl.clients import JsonRpcClient
 from xrpl.wallet import generate_faucet_wallet
