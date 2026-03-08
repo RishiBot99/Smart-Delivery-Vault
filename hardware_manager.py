@@ -80,11 +80,11 @@ def result():
     while True:
         temp = readBmp180()
         tempC = temp
-        tempF = (tempC * 1.8) + 32
+        #tempF = (tempC * 1.8) + 32
 
         # print("Temp in C:  ",tempC)
         # print("Temp in F:  ",tempF)
-        return tempC, tempF
+        return tempC
         #print("\n")
 
         time.sleep(5)
