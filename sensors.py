@@ -8,7 +8,7 @@ def get_ip_location():
     """Fetches location based on the Pi's IP address."""
     try:
         # Free geolocation API
-        response = requests.get('https://ipapi.co/json/', timeout=5).json()
+        response = requests.get('https://ipapi.co/json/', timeout=5).json() #easy simple way to implement the idea of using geolocation as another method for ensuring safe transaction
         city = response.get('city', 'Unknown City')
         region = response.get('region', 'Unknown Region')
         return f"{city}, {region}"
